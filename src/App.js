@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import RuleLegend from './Components/RuleLegend';
 import MainInfoLegend from './Components/MainInfoLegend';
 
@@ -45,7 +45,7 @@ const RuleCanvas = () => {
       selectedRule,
       action,
       timestamp: Date.now(),
-      isSaved: false  // Add this line
+      isSaved: false
     };
 
     const newHistory = history.slice(0, historyIndex + 1);
@@ -53,15 +53,14 @@ const RuleCanvas = () => {
 
     if (newHistory.length > 50) {
       newHistory.shift();
-      // Add these lines:
       if (lastSavedIndex >= 0) {
         setLastSavedIndex(Math.max(-1, lastSavedIndex - 1));
       }
+      setHistory(newHistory);
     } else {
+      setHistory(newHistory);
       setHistoryIndex(historyIndex + 1);
     }
-
-    setHistory(newHistory);
   };
 
   const markAsSaved = () => {
@@ -145,8 +144,8 @@ const RuleCanvas = () => {
 
     const newRule = {
       id: ruleIdCounter,
-      x: x - 25,
-      y: y - 25,
+      x: x - 35,
+      y: y - 35,
       label: `Rule ${ruleIdCounter}`,
       description: `This is rule ${ruleIdCounter}`,
       status: 'Active',
@@ -635,15 +634,15 @@ const RuleCanvas = () => {
 
             if (!fromRule || !toRule) return null;
 
-            const fromX = fromRule.x + 25;
-            const fromY = fromRule.y + 25;
-            const toX = toRule.x + 25;
-            const toY = toRule.y + 25;
+            const fromX = fromRule.x + 35;
+            const fromY = fromRule.y + 35;
+            const toX = toRule.x + 35;
+            const toY = toRule.y + 35;
 
             const dx = toX - fromX;
             const dy = toY - fromY;
             const length = Math.sqrt(dx * dx + dy * dy);
-            const ruleRadius = 25;
+            const ruleRadius = 35;
 
             const adjustedToX = toX - (dx / length) * ruleRadius;
             const adjustedToY = toY - (dy / length) * ruleRadius;
@@ -719,15 +718,15 @@ const RuleCanvas = () => {
                   position: 'absolute',
                   left: rule.x,
                   top: rule.y,
-                  width: '50px',
-                  height: '50px',
+                  width: '70px',
+                  height: '70px',
                   backgroundColor: isSelected ? '#10b981' : (isDraggingThis ? '#2563eb' : '#3b82f6'),
                   borderRadius: '50%',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'white',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   fontWeight: '600',
                   cursor: selectedRule && selectedRule !== rule.id ? 'pointer' : (isDraggingThis ? 'grabbing' : 'grab'),
                   boxShadow: isDraggingThis ? '0 4px 8px rgba(0,0,0,0.2)' : (isSelected ? '0 0 0 3px rgba(16, 185, 129, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'),
@@ -752,11 +751,11 @@ const RuleCanvas = () => {
                       if (e.key === 'Escape') cancelRuleEdit();
                     }}
                     style={{
-                      width: '40px',
-                      height: '20px',
+                      width: '60px',
+                      height: '25px',
                       border: 'none',
                       outline: 'none',
-                      fontSize: '10px',
+                      fontSize: '11px',
                       textAlign: 'center',
                       backgroundColor: 'rgba(255,255,255,0.9)',
                       color: '#374151',
@@ -767,8 +766,15 @@ const RuleCanvas = () => {
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '45px' }}>
-                    {rule.label.length > 6 ? rule.label.substring(0, 6) + '...' : rule.label}
+                  <span style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    maxWidth: '65px',
+                    textAlign: 'center',
+                    lineHeight: '1.2'
+                  }}>
+                    {rule.label.length > 8 ? rule.label.substring(0, 8) + '...' : rule.label}
                   </span>
                 )}
               </div>
