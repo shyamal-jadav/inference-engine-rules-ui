@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import RuleLegend from './Components/RuleLegend';
 import MainInfoLegend from './Components/MainInfoLegend';
 
@@ -36,6 +37,8 @@ const RuleCanvas = () => {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lastSavedIndex, setLastSavedIndex] = useState(-1);
+
+  const [isPanningLib, setIsPanningLib] = useState(false);
 
   // Save state to history
   const saveToHistory = (action) => {
@@ -110,8 +113,8 @@ const RuleCanvas = () => {
     // Hide context menu on any click
     setContextMenu(null);
 
-    // Don't create rules if we just finished dragging
-    if (isDragging || hasDragged) {
+    // Don't create rules if we just finished dragging or panning
+    if (isDragging || hasDragged || isPanningLib) {
       setIsDragging(false);
       setHasDragged(false);
       return;
@@ -599,300 +602,346 @@ const RuleCanvas = () => {
       )}
 
       {/* Canvas Area */}
-      <div
-        style={{
-          width: '100%',
-          height: '100%',
-          backgroundColor: '#f9fafb',
-          border: '2px dashed #d1d5db',
-          position: 'relative',
-          cursor: dragging ? 'grabbing' : (selectedRule ? 'pointer' : 'crosshair')
+      <TransformWrapper
+        initialScale={1}
+        initialPositionX={0}
+        initialPositionY={0}
+        minScale={0.3}
+        maxScale={5}
+        wheel={{ step: 0.1 }}
+        panning={{
+          disabled: dragging || editingRule // Remove isPanningLib from here
         }}
-        onClick={handleCanvasClick}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setContextMenu(null);
+        doubleClick={{ disabled: true }}
+        limitToBounds={false}
+        centerOnInit={false}
+        alignmentAnimation={{ disabled: true }}
+        velocityAnimation={{ disabled: false }}
+        onPanningStart={() => {
+          setIsPanningLib(true);
+        }}
+        onPanningStop={() => {
+          // Delay clearing the panning state to prevent immediate node creation
+          setTimeout(() => setIsPanningLib(false), 100);
+        }}
+        onTransformStart={() => {
+          setIsPanningLib(true);
+        }}
+        onTransformStop={() => {
+          setTimeout(() => setIsPanningLib(false), 100);
         }}
       >
-        {/* SVG for connections */}
-        <svg
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
+        <TransformComponent
+          wrapperStyle={{
             width: '100%',
             height: '100%',
-            pointerEvents: 'none',
-            zIndex: 1
+            backgroundColor: '#f9fafb',
+            border: '2px dashed #d1d5db'
+          }}
+          contentStyle={{
+            width: '200%',
+            height: '200%',
+            position: 'relative',
+            minWidth: '2000px',
+            minHeight: '2000px'
           }}
         >
-          {connections.map(connection => {
-            const fromRule = rules.find(n => n.id === connection.from);
-            const toRule = rules.find(n => n.id === connection.to);
 
-            if (!fromRule || !toRule) return null;
-
-            const fromX = fromRule.x + 35;
-            const fromY = fromRule.y + 35;
-            const toX = toRule.x + 35;
-            const toY = toRule.y + 35;
-
-            const dx = toX - fromX;
-            const dy = toY - fromY;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const ruleRadius = 35;
-
-            const adjustedToX = toX - (dx / length) * ruleRadius;
-            const adjustedToY = toY - (dy / length) * ruleRadius;
-
-            return (
-              <g key={connection.id}>
-                <line
-                  x1={fromX}
-                  y1={fromY}
-                  x2={adjustedToX}
-                  y2={adjustedToY}
-                  stroke="#374151"
-                  strokeWidth="2"
-                  markerEnd="url(#arrowhead)"
-                />
-                <line
-                  x1={fromX}
-                  y1={fromY}
-                  x2={adjustedToX}
-                  y2={adjustedToY}
-                  stroke="transparent"
-                  strokeWidth="12"
-                  style={{ pointerEvents: 'all', cursor: 'pointer' }}
-                  onContextMenu={(e) => handleConnectionRightClick(e, connection.id)}
-                />
-              </g>
-            );
-          })}
-
-          <defs>
-            <marker
-              id="arrowhead"
-              markerWidth="12"
-              markerHeight="8"
-              refX="11"
-              refY="4"
-              orient="auto"
+          <div
+            style={{
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+              cursor: dragging ? 'grabbing' : (selectedRule ? 'pointer' : 'crosshair')
+            }}
+            onClick={handleCanvasClick}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu(null);
+            }}
+          >
+            {/* SVG for connections */}
+            <svg
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                pointerEvents: 'none',
+                zIndex: 1
+              }}
             >
-              <polygon
-                points="0 0, 12 4, 0 8"
-                fill="#374151"
-              />
-            </marker>
-          </defs>
-        </svg>
+              {connections.map(connection => {
+                const fromRule = rules.find(n => n.id === connection.from);
+                const toRule = rules.find(n => n.id === connection.to);
 
-        {rules.length === 0 ? (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: '100%',
-            color: '#9ca3af',
-            fontSize: '16px',
-            zIndex: 2,
-            position: 'relative'
-          }}>
-            {selectedRule ? 'Click empty space to deselect, or click target rule' : 'Click to create rules, right-click for options'}
-          </div>
-        ) : null}
+                if (!fromRule || !toRule) return null;
 
-        {/* Render Rules */}
-        {rules.map(rule => {
-          const isSelected = selectedRule === rule.id;
-          const isDraggingThis = dragging === rule.id;
-          const isEditing = editingRule === rule.id;
+                const fromX = fromRule.x + 35;
+                const fromY = fromRule.y + 35;
+                const toX = toRule.x + 35;
+                const toY = toRule.y + 35;
 
-          return (
-            <div key={rule.id}>
-              {/* Rule */}
+                const dx = toX - fromX;
+                const dy = toY - fromY;
+                const length = Math.sqrt(dx * dx + dy * dy);
+                const ruleRadius = 35;
+
+                const adjustedToX = toX - (dx / length) * ruleRadius;
+                const adjustedToY = toY - (dy / length) * ruleRadius;
+
+                return (
+                  <g key={connection.id}>
+                    <line
+                      x1={fromX}
+                      y1={fromY}
+                      x2={adjustedToX}
+                      y2={adjustedToY}
+                      stroke="#374151"
+                      strokeWidth="2"
+                      markerEnd="url(#arrowhead)"
+                    />
+                    <line
+                      x1={fromX}
+                      y1={fromY}
+                      x2={adjustedToX}
+                      y2={adjustedToY}
+                      stroke="transparent"
+                      strokeWidth="12"
+                      style={{ pointerEvents: 'all', cursor: 'pointer' }}
+                      onContextMenu={(e) => handleConnectionRightClick(e, connection.id)}
+                    />
+                  </g>
+                );
+              })}
+
+              <defs>
+                <marker
+                  id="arrowhead"
+                  markerWidth="12"
+                  markerHeight="8"
+                  refX="11"
+                  refY="4"
+                  orient="auto"
+                >
+                  <polygon
+                    points="0 0, 12 4, 0 8"
+                    fill="#374151"
+                  />
+                </marker>
+              </defs>
+            </svg>
+
+            {rules.length === 0 ? (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                height: '100%',
+                color: '#9ca3af',
+                fontSize: '16px',
+                zIndex: 2,
+                position: 'relative'
+              }}>
+                {selectedRule ? 'Click empty space to deselect, or click target rule' : 'Click to create rules, right-click for options'}
+              </div>
+            ) : null}
+
+            {/* Render Rules */}
+            {rules.map(rule => {
+              const isSelected = selectedRule === rule.id;
+              const isDraggingThis = dragging === rule.id;
+              const isEditing = editingRule === rule.id;
+
+              return (
+                <div key={rule.id}>
+                  {/* Rule */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: rule.x,
+                      top: rule.y,
+                      width: '70px',
+                      height: '70px',
+                      backgroundColor: isSelected ? '#10b981' : (isDraggingThis ? '#2563eb' : '#3b82f6'),
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      cursor: selectedRule && selectedRule !== rule.id ? 'pointer' : (isDraggingThis ? 'grabbing' : 'grab'),
+                      boxShadow: isDraggingThis ? '0 4px 8px rgba(0,0,0,0.2)' : (isSelected ? '0 0 0 3px rgba(16, 185, 129, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'),
+                      userSelect: 'none',
+                      transform: isDraggingThis ? 'scale(1.1)' : (isSelected ? 'scale(1.05)' : 'scale(1)'),
+                      transition: isDraggingThis ? 'none' : 'all 0.1s ease',
+                      zIndex: isDraggingThis ? 10 : (isSelected ? 5 : 2)
+                    }}
+                    onMouseDown={(e) => !isEditing && handleMouseDown(e, rule.id)}
+                    onClick={(e) => !isEditing && handleRuleClick(e, rule.id)}
+                    onContextMenu={(e) => !isEditing && handleRuleRightClick(e, rule.id)}
+                  >
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editLabel}
+                        onChange={(e) => setEditLabel(e.target.value)}
+                        onBlur={saveRuleEdit}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') saveRuleEdit();
+                          if (e.key === 'Escape') cancelRuleEdit();
+                        }}
+                        style={{
+                          width: '60px',
+                          height: '25px',
+                          border: 'none',
+                          outline: 'none',
+                          fontSize: '11px',
+                          textAlign: 'center',
+                          backgroundColor: 'rgba(255,255,255,0.9)',
+                          color: '#374151',
+                          borderRadius: '3px',
+                          padding: '2px'
+                        }}
+                        autoFocus
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: '65px',
+                        textAlign: 'center',
+                        lineHeight: '1.2'
+                      }}>
+                        {rule.label.length > 8 ? rule.label.substring(0, 8) + '...' : rule.label}
+                      </span>
+                    )}
+                  </div>
+
+                </div>
+              );
+            })}
+
+            {/* Context Menu */}
+            {contextMenu && (
               <div
                 style={{
                   position: 'absolute',
-                  left: rule.x,
-                  top: rule.y,
-                  width: '70px',
-                  height: '70px',
-                  backgroundColor: isSelected ? '#10b981' : (isDraggingThis ? '#2563eb' : '#3b82f6'),
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  cursor: selectedRule && selectedRule !== rule.id ? 'pointer' : (isDraggingThis ? 'grabbing' : 'grab'),
-                  boxShadow: isDraggingThis ? '0 4px 8px rgba(0,0,0,0.2)' : (isSelected ? '0 0 0 3px rgba(16, 185, 129, 0.3)' : '0 2px 4px rgba(0,0,0,0.1)'),
-                  userSelect: 'none',
-                  transform: isDraggingThis ? 'scale(1.1)' : (isSelected ? 'scale(1.05)' : 'scale(1)'),
-                  transition: isDraggingThis ? 'none' : 'all 0.1s ease',
-                  zIndex: isDraggingThis ? 10 : (isSelected ? 5 : 2)
+                  left: contextMenu.x,
+                  top: contextMenu.y,
+                  backgroundColor: 'white',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                  zIndex: 100,
+                  overflow: 'hidden'
                 }}
-                onMouseDown={(e) => !isEditing && handleMouseDown(e, rule.id)}
-                onClick={(e) => !isEditing && handleRuleClick(e, rule.id)}
-                onContextMenu={(e) => !isEditing && handleRuleRightClick(e, rule.id)}
+                onClick={(e) => e.stopPropagation()}
               >
-                {isEditing ? (
-                  <input
-                    type="text"
-                    value={editLabel}
-                    onChange={(e) => setEditLabel(e.target.value)}
-                    onBlur={saveRuleEdit}
-                    onKeyDown={(e) => {
+                {contextMenu.type === 'rule' ? (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        startEditRule(contextMenu.ruleId);
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: '#374151',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #e5e7eb'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      ✏️ Edit Label
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRuleDetails(contextMenu.ruleId);
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: '#374151',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #e5e7eb'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      📋 Edit Details
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteRule(contextMenu.ruleId);
+                      }}
+                      style={{
+                        display: 'block',
+                        width: '100%',
+                        padding: '8px 12px',
+                        fontSize: '12px',
+                        color: '#dc2626',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer'
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={(e) => {
                       e.stopPropagation();
-                      if (e.key === 'Enter') saveRuleEdit();
-                      if (e.key === 'Escape') cancelRuleEdit();
+                      deleteConnection(contextMenu.connectionId);
                     }}
                     style={{
-                      width: '60px',
-                      height: '25px',
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      color: '#dc2626',
+                      backgroundColor: 'transparent',
                       border: 'none',
-                      outline: 'none',
-                      fontSize: '11px',
-                      textAlign: 'center',
-                      backgroundColor: 'rgba(255,255,255,0.9)',
-                      color: '#374151',
-                      borderRadius: '3px',
-                      padding: '2px'
+                      textAlign: 'left',
+                      cursor: 'pointer'
                     }}
-                    autoFocus
-                    onClick={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <span style={{
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: '65px',
-                    textAlign: 'center',
-                    lineHeight: '1.2'
-                  }}>
-                    {rule.label.length > 8 ? rule.label.substring(0, 8) + '...' : rule.label}
-                  </span>
+                    onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
+                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                  >
+                    🗑️ Delete Connection
+                  </button>
                 )}
               </div>
-
-            </div>
-          );
-        })}
-
-        {/* Context Menu */}
-        {contextMenu && (
-          <div
-            style={{
-              position: 'absolute',
-              left: contextMenu.x,
-              top: contextMenu.y,
-              backgroundColor: 'white',
-              border: '1px solid #d1d5db',
-              borderRadius: '6px',
-              boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-              zIndex: 100,
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {contextMenu.type === 'rule' ? (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    startEditRule(contextMenu.ruleId);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    color: '#374151',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #e5e7eb'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                >
-                  ✏️ Edit Label
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openRuleDetails(contextMenu.ruleId);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    color: '#374151',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    borderBottom: '1px solid #e5e7eb'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f3f4f6'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                >
-                  📋 Edit Details
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteRule(contextMenu.ruleId);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    color: '#dc2626',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    textAlign: 'left',
-                    cursor: 'pointer'
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                >
-                  🗑️ Delete
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  deleteConnection(contextMenu.connectionId);
-                }}
-                style={{
-                  display: 'block',
-                  width: '100%',
-                  padding: '8px 12px',
-                  fontSize: '12px',
-                  color: '#dc2626',
-                  backgroundColor: 'transparent',
-                  border: 'none',
-                  textAlign: 'left',
-                  cursor: 'pointer'
-                }}
-                onMouseEnter={(e) => e.target.style.backgroundColor = '#fef2f2'}
-                onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-              >
-                🗑️ Delete Connection
-              </button>
             )}
           </div>
-        )}
-      </div>
+        </TransformComponent>
+      </TransformWrapper>
+
     </div>
   );
 };
