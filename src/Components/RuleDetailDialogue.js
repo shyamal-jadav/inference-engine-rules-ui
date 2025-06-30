@@ -153,7 +153,10 @@ const RuleDetailDialogue = ({ setShowRuleDetails, ruleForm, setRuleForm, saveRul
                         <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '4px', color: '#374151' }}>
                             Priority
                         </label>
-                        <select
+                        <input
+                            type="number"
+                            min="0"
+                            max="2"
                             value={ruleForm.priority}
                             onChange={(e) => setRuleForm({ ...ruleForm, priority: e.target.value })}
                             style={{
@@ -163,11 +166,7 @@ const RuleDetailDialogue = ({ setShowRuleDetails, ruleForm, setRuleForm, saveRul
                                 borderRadius: '4px',
                                 fontSize: '14px'
                             }}
-                        >
-                            <option value="Low">Low</option>
-                            <option value="Medium">Medium</option>
-                            <option value="High">High</option>
-                        </select>
+                        />
                     </div>
                 </div>
 

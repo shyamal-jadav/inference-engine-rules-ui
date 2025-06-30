@@ -34,7 +34,7 @@ const RuleCanvas = () => {
     conditions: '',
     action: '',
     alterAction: '',
-    priority: 'Medium'
+    priority: '0'
   });
 
   // Undo functionality
@@ -150,7 +150,7 @@ const RuleCanvas = () => {
       y: y - 35,
       label: `Rule ${ruleIdCounter}`,
       description: `This is rule ${ruleIdCounter}`,
-      status: 'Active', eligibility: '', conditions: '', action: '', alterAction: '', priority: 'Medium', createdAt: new Date().toLocaleDateString()
+      status: 'Active', eligibility: '', conditions: '', action: '', alterAction: '', priority: '0', createdAt: new Date().toLocaleDateString()
     };
     const newRules = [...rules, newRule];
     setRules(newRules);
