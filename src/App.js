@@ -51,12 +51,37 @@ const RuleCanvas = () => {
   const [panStartY, setPanStartY] = useState(0);
   const [panStartPositionY, setPanStartPositionY] = useState(0);
 
+  // On mount, save the initial empty state to history
+  useEffect(() => {
+    if (history.length === 0) {
+      const initialState = {
+        rules: [],
+        connections: [],
+        selectedRule: null,
+        action: 'Initial',
+        timestamp: Date.now(),
+        isSaved: false
+      };
+      setHistory([initialState]);
+      setHistoryIndex(0);
+    }
+  }, []);
+
   // Save state to history
-  const saveToHistory = (action) => {
+  const saveToHistory = (action, rulesArg = rules, connectionsArg = connections, selectedRuleArg = selectedRule) => {
+    // Only save history for specific actions, not for position changes
+    // Tracked actions: Create/Delete nodes, Create/Delete connections, Edit labels/details
+    // NOT tracked: Position changes (dragging), panning, selection changes
+    const actionsToSave = ['Create Rule', 'Delete Rule', 'Create Connection', 'Delete Connection', 'Edit Rule Label', 'Update Rule Details'];
+    
+    if (!actionsToSave.includes(action)) {
+      return; // Don't save history for other actions like position changes
+    }
+
     const currentState = {
-      rules: [...rules],
-      connections: [...connections],
-      selectedRule,
+      rules: [...rulesArg],
+      connections: [...connectionsArg],
+      selectedRule: selectedRuleArg,
       action,
       timestamp: Date.now(),
       isSaved: false
@@ -70,11 +95,9 @@ const RuleCanvas = () => {
       if (lastSavedIndex >= 0) {
         setLastSavedIndex(Math.max(-1, lastSavedIndex - 1));
       }
-      setHistory(newHistory);
-    } else {
-      setHistory(newHistory);
-      setHistoryIndex(historyIndex + 1);
     }
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
   };
 
   const markAsSaved = () => {
@@ -121,94 +144,48 @@ const RuleCanvas = () => {
   }, [undo, showRuleDetails]);
 
   const handleCanvasClick = (e) => {
-    // Hide context menu on any click
     setContextMenu(null);
-
-    // Don't create rules if we just finished dragging or panning
     if (isDragging || hasDragged || isPanningLib) {
       setIsDragging(false);
       setHasDragged(false);
       return;
     }
-
-    // Cancel editing if clicking elsewhere
-    if (editingRule) {
-      cancelRuleEdit();
-      return;
-    }
-
-    // Close rule details modal
-    if (showRuleDetails) {
-      setShowRuleDetails(false);
-      return;
-    }
-
-    // Deselect any selected rule when clicking empty space
-    if (selectedRule) {
-      setSelectedRule(null);
-      return;
-    }
-
+    if (editingRule) { cancelRuleEdit(); return; }
+    if (showRuleDetails) { setShowRuleDetails(false); return; }
+    if (selectedRule) { setSelectedRule(null); return; }
     const rect = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-
-    // Save current state before creating new rule
-    saveToHistory('Create Rule');
-
     const newRule = {
       id: ruleIdCounter,
       x: x - 35,
       y: y - 35,
       label: `Rule ${ruleIdCounter}`,
       description: `This is rule ${ruleIdCounter}`,
-      status: 'Active',
-      eligibility: '',
-      conditions: '',
-      action: '',
-      alterAction: '',
-      priority: 'Medium',
-      createdAt: new Date().toLocaleDateString()
+      status: 'Active', eligibility: '', conditions: '', action: '', alterAction: '', priority: 'Medium', createdAt: new Date().toLocaleDateString()
     };
-
-    setRules([...rules, newRule]);
+    const newRules = [...rules, newRule];
+    setRules(newRules);
     setRuleIdCounter(ruleIdCounter + 1);
+    saveToHistory('Create Rule', newRules, connections, selectedRule);
   };
 
   const handleRuleClick = (e, ruleId) => {
     e.stopPropagation();
-
-    // Hide context menu
     setContextMenu(null);
-
-    // Prevent connection logic if we just finished dragging
-    if (isDragging || hasDragged) {
-      setHasDragged(false);
-      return;
-    }
-
+    if (isDragging || hasDragged) { setHasDragged(false); return; }
     if (selectedRule === null) {
       setSelectedRule(ruleId);
     } else if (selectedRule === ruleId) {
       setSelectedRule(null);
     } else {
-      // Save state before creating connection
-      saveToHistory('Create Connection');
-
-      const newConnection = {
-        id: `${selectedRule}-${ruleId}`,
-        from: selectedRule,
-        to: ruleId
-      };
-
-      const exists = connections.some(conn =>
-        conn.from === selectedRule && conn.to === ruleId
-      );
-
+      const newConnection = { id: `${selectedRule}-${ruleId}`, from: selectedRule, to: ruleId };
+      const exists = connections.some(conn => conn.from === selectedRule && conn.to === ruleId);
       if (!exists) {
-        setConnections([...connections, newConnection]);
+        const newConnections = [...connections, newConnection];
+        setConnections(newConnections);
+        saveToHistory('Create Connection', rules, newConnections, null);
       }
-
       setSelectedRule(null);
     }
   };
@@ -249,24 +226,20 @@ const RuleCanvas = () => {
   };
 
   const deleteRule = (ruleId) => {
-    saveToHistory('Delete Rule');
-
-    setRules(rules.filter(rule => rule.id !== ruleId));
-    setConnections(connections.filter(conn =>
-      conn.from !== ruleId && conn.to !== ruleId
-    ));
-
-    if (selectedRule === ruleId) {
-      setSelectedRule(null);
-    }
-
+    const newRules = rules.filter(rule => rule.id !== ruleId);
+    const newConnections = connections.filter(conn => conn.from !== ruleId && conn.to !== ruleId);
+    setRules(newRules);
+    setConnections(newConnections);
+    if (selectedRule === ruleId) setSelectedRule(null);
     setContextMenu(null);
+    saveToHistory('Delete Rule', newRules, newConnections, selectedRule === ruleId ? null : selectedRule);
   };
 
   const deleteConnection = (connectionId) => {
-    saveToHistory('Delete Connection');
-    setConnections(connections.filter(conn => conn.id !== connectionId));
+    const newConnections = connections.filter(conn => conn.id !== connectionId);
+    setConnections(newConnections);
     setContextMenu(null);
+    saveToHistory('Delete Connection', rules, newConnections, selectedRule);
   };
 
   const startEditRule = (ruleId) => {
@@ -293,29 +266,19 @@ const RuleCanvas = () => {
   };
 
   const saveRuleDetails = () => {
-    saveToHistory('Update Rule Details');
-
-    setRules(rules.map(rule =>
-      rule.id === editingRuleDetails
-        ? { ...rule, ...ruleForm }
-        : rule
-    ));
-
+    const newRules = rules.map(rule => rule.id === editingRuleDetails ? { ...rule, ...ruleForm } : rule);
+    setRules(newRules);
     setShowRuleDetails(false);
     setEditingRuleDetails(null);
-
-    // Add this line to mark as saved:
+    saveToHistory('Update Rule Details', newRules, connections, selectedRule);
     setTimeout(() => markAsSaved(), 0);
   };
 
   const saveRuleEdit = () => {
     if (editLabel.trim()) {
-      saveToHistory('Edit Rule Label');
-      setRules(rules.map(rule =>
-        rule.id === editingRule
-          ? { ...rule, label: editLabel.trim() }
-          : rule
-      ));
+      const newRules = rules.map(rule => rule.id === editingRule ? { ...rule, label: editLabel.trim() } : rule);
+      setRules(newRules);
+      saveToHistory('Edit Rule Label', newRules, connections, selectedRule);
     }
     setEditingRule(null);
     setEditLabel('');
@@ -345,10 +308,6 @@ const RuleCanvas = () => {
 
   const handleMouseMove = (e) => {
     if (!dragging) return;
-
-    if (!hasDragged) {
-      saveToHistory('Move Rule');
-    }
 
     setIsDragging(true);
     setHasDragged(true);
@@ -490,22 +449,6 @@ const RuleCanvas = () => {
         selectedRule={selectedRule}
         lastSavedIndex={lastSavedIndex}
       />
-
-      {/* Panning Instructions */}
-      <div style={{
-        position: 'absolute',
-        bottom: '16px',
-        left: '16px',
-        backgroundColor: 'white',
-        padding: '8px 12px',
-        borderRadius: '6px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-        zIndex: 10,
-        fontSize: '12px',
-        color: '#6b7280'
-      }}>
-        Drag to pan down (middle-click or Ctrl+drag)
-      </div>
 
       {/* Selected Rule Legend */}
       {selectedRuleData &&

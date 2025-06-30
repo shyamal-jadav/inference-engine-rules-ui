@@ -36,7 +36,10 @@ const MainInfoLegend = ({ rules, connections, historyIndex, selectedRule, lastSa
             borderRadius: '4px',
             border: '1px solid #c7d2fe'
         }}>
-            📝 Ctrl+Z to undo ({historyIndex >= 0 ? historyIndex + 1 : 0} actions)
+            📝 Ctrl+Z to undo ({Math.max(0, historyIndex)} actions)
+            <div style={{ fontSize: '10px', marginTop: '2px' }}>
+                Undo: Create/Delete nodes & edges
+            </div>
             {lastSavedIndex >= 0 && <div>🔒 Protected: {lastSavedIndex + 1} saved actions</div>}
         </div>
 
