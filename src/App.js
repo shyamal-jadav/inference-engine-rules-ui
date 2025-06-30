@@ -50,6 +50,9 @@ const RuleCanvas = () => {
   const [panStartY, setPanStartY] = useState(0);
   const [panStartPositionY, setPanStartPositionY] = useState(0);
 
+  // Error message state
+  const [errorMessage, setErrorMessage] = useState('');
+
   // On mount, save the initial empty state to history
   useEffect(() => {
     if (history.length === 0) {
@@ -154,6 +157,32 @@ const RuleCanvas = () => {
     saveToHistory('Create Rule', newRules, connections, selectedRule);
   };
 
+  // Utility: Detect cycle in directed graph
+  function wouldCreateCycle(connections, from, to) {
+    // Simple DFS to see if 'to' can reach 'from' (which would create a cycle)
+    const adj = {};
+    connections.forEach(conn => {
+      if (!adj[conn.from]) adj[conn.from] = [];
+      adj[conn.from].push(conn.to);
+    });
+    // Add the new edge
+    if (!adj[from]) adj[from] = [];
+    adj[from].push(to);
+    // DFS
+    const stack = [to];
+    const visited = new Set();
+    while (stack.length) {
+      const node = stack.pop();
+      if (node === from) return true;
+      if (!visited.has(node) && adj[node]) {
+        visited.add(node);
+        stack.push(...adj[node]);
+      }
+    }
+    return false;
+  }
+
+  // --- Edge creation ---
   const handleRuleClick = (e, ruleId) => {
     e.stopPropagation();
     setContextMenu(null);
@@ -166,9 +195,15 @@ const RuleCanvas = () => {
       const newConnection = { id: `${selectedRule}-${ruleId}`, from: selectedRule, to: ruleId };
       const exists = connections.some(conn => conn.from === selectedRule && conn.to === ruleId);
       if (!exists) {
-        const newConnections = [...connections, newConnection];
-        setConnections(newConnections);
-        saveToHistory('Create Connection', rules, newConnections, null);
+        // Check for cycle
+        if (wouldCreateCycle(connections, selectedRule, ruleId)) {
+          setErrorMessage('Cannot create chain: this would create a cycle');
+          setTimeout(() => setErrorMessage(''), 3000);
+        } else {
+          const newConnections = [...connections, newConnection];
+          setConnections(newConnections);
+          saveToHistory('Create Connection', rules, newConnections, null);
+        }
       }
       setSelectedRule(null);
     }
@@ -456,6 +491,27 @@ const RuleCanvas = () => {
           setRuleForm={setRuleForm}
           saveRuleDetails={saveRuleDetails}
         />
+      )}
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div style={{
+          position: 'absolute',
+          top: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          backgroundColor: '#fee2e2',
+          color: '#b91c1c',
+          padding: '10px 24px',
+          borderRadius: '8px',
+          fontWeight: 600,
+          fontSize: '16px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+          zIndex: 1000,
+          border: '1px solid #fca5a5',
+        }}>
+          {errorMessage}
+        </div>
       )}
 
       {/* Canvas Area */}
