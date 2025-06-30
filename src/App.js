@@ -52,6 +52,7 @@ const RuleCanvas = () => {
 
   // Error message state
   const [errorMessage, setErrorMessage] = useState('');
+  const [errorType, setErrorType] = useState('error'); // 'error' or 'success'
 
   // On mount, save the initial empty state to history
   useEffect(() => {
@@ -198,6 +199,7 @@ const RuleCanvas = () => {
         // Check for cycle
         if (wouldCreateCycle(connections, selectedRule, ruleId)) {
           setErrorMessage('Cannot create chain: this would create a cycle');
+          setErrorType('error');
           setTimeout(() => setErrorMessage(''), 3000);
         } else {
           const newConnections = [...connections, newConnection];
@@ -481,17 +483,111 @@ const RuleCanvas = () => {
         />
       </div>
 
-      {/* Export JSON Button - bottom right */}
+      {/* Import & Export JSON Buttons - bottom right */}
       <div style={{
         position: 'absolute',
         right: '32px',
         bottom: '32px',
         zIndex: 10,
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'flex-end',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: '12px',
         minWidth: '120px',
       }}>
+        {/* Import Button */}
+        <input
+          id="import-json-input"
+          type="file"
+          accept="application/json"
+          style={{ display: 'none' }}
+          onChange={async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (!file.name.endsWith('.json')) {
+              setErrorMessage('Please select a .json file');
+              setErrorType('error');
+              setTimeout(() => setErrorMessage(''), 3000);
+              return;
+            }
+            try {
+              const text = await file.text();
+              const data = JSON.parse(text);
+              if (!Array.isArray(data.rules) || !Array.isArray(data.connections)) {
+                setErrorMessage('Invalid file format: missing rules or connections');
+                setErrorType('error');
+                setTimeout(() => setErrorMessage(''), 3000);
+                return;
+              }
+              // Check for cycles in imported connections
+              for (const conn of data.connections) {
+                const rest = data.connections.filter(c => c !== conn);
+                if (wouldCreateCycle(rest, conn.from, conn.to)) {
+                  setErrorMessage('Import failed: cycle detected in connections');
+                  setErrorType('error');
+                  setTimeout(() => setErrorMessage(''), 3000);
+                  return;
+                }
+              }
+              setRules(data.rules);
+              setConnections(data.connections);
+              setRuleIdCounter(
+                data.rules.reduce((max, r) => Math.max(max, r.id), 0) + 1
+              );
+              setSelectedRule(null);
+              setContextMenu(null);
+              setShowRuleDetails(false);
+              setEditingRule(null);
+              setEditingRuleDetails(null);
+              setErrorMessage('Imported successfully!');
+              setErrorType('success');
+              setTimeout(() => setErrorMessage(''), 2000);
+            } catch (err) {
+              setErrorMessage('Failed to import: invalid JSON');
+              setErrorType('error');
+              setTimeout(() => setErrorMessage(''), 3000);
+            }
+          }}
+        />
+        <button
+          onClick={() => document.getElementById('import-json-input').click()}
+          style={{
+            background: 'linear-gradient(90deg, #22d3ee 0%, #10b981 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '8px 18px',
+            fontSize: '15px',
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(34,211,238,0.10)',
+            minWidth: '120px',
+            letterSpacing: '0.2px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '7px',
+            border: '1.2px solid #22d3ee',
+            transition: 'background 0.2s, box-shadow 0.2s, transform 0.15s',
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #22d3ee 100%)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(16,185,129,0.13)';
+            e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.background = 'linear-gradient(90deg, #22d3ee 0%, #10b981 100%)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(34,211,238,0.10)';
+            e.currentTarget.style.transform = 'none';
+          }}
+        >
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style={{marginRight: '2px'}}>
+            <path d="M12 20V8m0 12l-4-4m4 4l4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <rect x="4" y="4" width="16" height="2" rx="1" fill="white"/>
+          </svg>
+          Import JSON
+        </button>
+        {/* Export Button */}
         <button
           onClick={() => {
             const data = JSON.stringify({ rules, connections }, null, 2);
@@ -571,15 +667,15 @@ const RuleCanvas = () => {
           top: '24px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: '#fee2e2',
-          color: '#b91c1c',
+          backgroundColor: errorType === 'error' ? '#fee2e2' : '#d1fae5',
+          color: errorType === 'error' ? '#b91c1c' : '#15803d',
           padding: '10px 24px',
           borderRadius: '8px',
           fontWeight: 600,
           fontSize: '16px',
           boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
           zIndex: 1000,
-          border: '1px solid #fca5a5',
+          border: `1px solid ${errorType === 'error' ? '#fca5a5' : '#4ade80'}`,
         }}>
           {errorMessage}
         </div>
