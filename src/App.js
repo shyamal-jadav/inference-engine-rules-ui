@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import RuleLegend from './Components/RuleLegend';
 import MainInfoLegend from './Components/MainInfoLegend';
@@ -6,6 +6,8 @@ import RuleDetailDialogue from './Components/RuleDetailDialogue';
 
 
 const RuleCanvas = () => {
+  const transformRef = useRef(null);
+
   const [rules, setRules] = useState([]);
   const [ruleIdCounter, setRuleIdCounter] = useState(1);
   const [dragging, setDragging] = useState(null);
@@ -41,6 +43,13 @@ const RuleCanvas = () => {
   const [lastSavedIndex, setLastSavedIndex] = useState(-1);
 
   const [isPanningLib, setIsPanningLib] = useState(false);
+  const [hasPannedDown, setHasPannedDown] = useState(false);
+  const [currentPanY, setCurrentPanY] = useState(0);
+
+  // Custom panning state
+  const [isCustomPanning, setIsCustomPanning] = useState(false);
+  const [panStartY, setPanStartY] = useState(0);
+  const [panStartPositionY, setPanStartPositionY] = useState(0);
 
   // Save state to history
   const saveToHistory = (action) => {
@@ -366,6 +375,100 @@ const RuleCanvas = () => {
     }
     setDragging(null);
     setDragOffset({ x: 0, y: 0 });
+
+    // End custom panning
+    if (isCustomPanning) {
+      setIsCustomPanning(false);
+      setIsPanningLib(false);
+    }
+  };
+
+  // Custom panning handlers
+  const handleCanvasMouseDown = (e) => {
+    console.log('Canvas mouse down event:', {
+      button: e.button,
+      ctrlKey: e.ctrlKey,
+      shiftKey: e.shiftKey,
+      altKey: e.altKey,
+      dragging,
+      editingRule,
+      isCustomPanning
+    });
+
+    // Only start panning if not dragging a rule and not editing
+    if (dragging || editingRule) {
+      console.log('Blocked by dragging or editing');
+      return;
+    }
+
+    // Allow panning with middle mouse button OR Ctrl + left mouse button
+    const isMiddleClick = e.button === 1;
+    const isCtrlLeftClick = e.button === 0 && e.ctrlKey;
+    
+    console.log('Panning conditions:', { isMiddleClick, isCtrlLeftClick });
+    
+    if (!isMiddleClick && !isCtrlLeftClick) {
+      console.log('No panning trigger detected');
+      return;
+    }
+
+    console.log('Starting custom panning');
+    e.preventDefault();
+    e.stopPropagation();
+    setIsCustomPanning(true);
+    setIsPanningLib(true);
+    setPanStartY(e.clientY);
+    
+    const transform = transformRef.current?.instance;
+    if (transform && transform.state) {
+      setPanStartPositionY(transform.state.positionY);
+      console.log('Set pan start position:', transform.state.positionY);
+    } else {
+      console.log('Transform not available');
+    }
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (!isCustomPanning) return;
+
+    console.log('Custom panning move:', {
+      deltaY: e.clientY - panStartY,
+      newPositionY: panStartPositionY + (e.clientY - panStartY),
+      currentPanY,
+      hasPannedDown
+    });
+
+    const deltaY = e.clientY - panStartY;
+    const newPositionY = panStartPositionY + deltaY;
+
+    // Check if trying to pan up before having panned down
+    if (newPositionY < currentPanY && !hasPannedDown) {
+      console.log('Blocked panning up - not allowed yet');
+      return; // Prevent panning up
+    }
+
+    // Update panning state
+    if (newPositionY > currentPanY) {
+      setHasPannedDown(true);
+      console.log('Now allowed to pan up');
+    }
+
+    setCurrentPanY(newPositionY);
+
+    // Apply the transform with error handling
+    try {
+      const transform = transformRef.current?.instance;
+      if (transform && transform.state) {
+        const currentScale = transform.state.scale || 1;
+        const currentPositionX = transform.state.positionX || 0;
+        transform.setTransform(currentScale, currentPositionX, newPositionY);
+        console.log('Applied transform:', { scale: currentScale, x: currentPositionX, y: newPositionY });
+      }
+    } catch (error) {
+      console.warn('Transform error:', error);
+      setIsCustomPanning(false);
+      setIsPanningLib(false);
+    }
   };
 
   // Get selected rule data
@@ -387,6 +490,22 @@ const RuleCanvas = () => {
         selectedRule={selectedRule}
         lastSavedIndex={lastSavedIndex}
       />
+
+      {/* Panning Instructions */}
+      <div style={{
+        position: 'absolute',
+        bottom: '16px',
+        left: '16px',
+        backgroundColor: 'white',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+        zIndex: 10,
+        fontSize: '12px',
+        color: '#6b7280'
+      }}>
+        Drag to pan down (middle-click or Ctrl+drag)
+      </div>
 
       {/* Selected Rule Legend */}
       {selectedRuleData &&
@@ -414,28 +533,42 @@ const RuleCanvas = () => {
         initialScale={1}
         initialPositionX={0}
         initialPositionY={0}
-        minScale={0.3}
-        maxScale={5}
-        wheel={{ step: 0.1 }}
+        minScale={1}
+        maxScale={1}
+        wheel={{ disabled: true }}
         panning={{
-          disabled: dragging || editingRule // Remove isPanningLib from here
+          disabled: false, // Enable default panning but with restrictions
+          velocityDisabled: false,
+          velocityAnimationTime: 0.25,
+          velocityBaseTime: 0.25,
+          velocityAnimation: true
         }}
         doubleClick={{ disabled: true }}
         limitToBounds={false}
         centerOnInit={false}
+        minPositionX={0}
+        maxPositionX={0}
+        minPositionY={-2500}
+        maxPositionY={2500}
         alignmentAnimation={{ disabled: true }}
         velocityAnimation={{ disabled: false }}
-        onPanningStart={() => {
+        zoomIn={{ disabled: true }}
+        zoomOut={{ disabled: true }}
+        ref={transformRef}
+        onPanningStart={(e) => {
+          console.log('TransformWrapper panning start:', e);
           setIsPanningLib(true);
         }}
-        onPanningStop={() => {
-          // Delay clearing the panning state to prevent immediate node creation
+        onPanningStop={(e) => {
+          console.log('TransformWrapper panning stop:', e);
           setTimeout(() => setIsPanningLib(false), 100);
         }}
-        onTransformStart={() => {
+        onTransformStart={(e) => {
+          console.log('TransformWrapper transform start:', e);
           setIsPanningLib(true);
         }}
-        onTransformStop={() => {
+        onTransformStop={(e) => {
+          console.log('TransformWrapper transform stop:', e);
           setTimeout(() => setIsPanningLib(false), 100);
         }}
       >
@@ -447,24 +580,28 @@ const RuleCanvas = () => {
             border: '2px dashed #d1d5db'
           }}
           contentStyle={{
-            width: '200%',
-            height: '200%',
-            position: 'relative',
-            minWidth: '2000px',
-            minHeight: '2000px'
+            width: '5000px',
+            height: '5000px',
+            position: 'relative'
           }}
         >
 
           <div
             style={{
-              width: '100%',
-              height: '100%',
-              position: 'relative',
+              width: '5000px',
+              height: '5000px',
+              position: 'absolute',
+              top: 0,
+              left: 0,
               cursor: dragging ? 'grabbing' : (selectedRule ? 'pointer' : 'crosshair')
             }}
             onClick={handleCanvasClick}
-            onMouseMove={handleMouseMove}
+            onMouseMove={(e) => {
+              handleMouseMove(e);
+              handleCanvasMouseMove(e);
+            }}
             onMouseUp={handleMouseUp}
+            onMouseDown={handleCanvasMouseDown}
             onContextMenu={(e) => {
               e.preventDefault();
               setContextMenu(null);
