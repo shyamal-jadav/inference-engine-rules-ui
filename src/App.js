@@ -40,7 +40,6 @@ const RuleCanvas = () => {
   // Undo functionality
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [lastSavedIndex, setLastSavedIndex] = useState(-1);
 
   const [isPanningLib, setIsPanningLib] = useState(false);
   const [hasPannedDown, setHasPannedDown] = useState(false);
@@ -92,39 +91,24 @@ const RuleCanvas = () => {
 
     if (newHistory.length > 50) {
       newHistory.shift();
-      if (lastSavedIndex >= 0) {
-        setLastSavedIndex(Math.max(-1, lastSavedIndex - 1));
-      }
     }
     setHistory(newHistory);
     setHistoryIndex(newHistory.length - 1);
   };
 
-  const markAsSaved = () => {
-    if (historyIndex >= 0) {
-      setLastSavedIndex(historyIndex);
-      setHistory(prev => prev.map((state, index) =>
-        index === historyIndex ? { ...state, isSaved: true } : state
-      ));
-    }
-  };
-
   // Undo functionality
   const undo = useCallback(() => {
-    const minIndex = Math.max(0, lastSavedIndex);
-
-    if (historyIndex > minIndex) {
+    if (historyIndex > 0) {
       const previousState = history[historyIndex - 1];
       setRules(previousState.rules);
       setConnections(previousState.connections);
       setSelectedRule(previousState.selectedRule);
       setHistoryIndex(historyIndex - 1);
-
       setContextMenu(null);
       setShowRuleDetails(false);
       setEditingRule(null);
     }
-  }, [historyIndex, history, lastSavedIndex]);
+  }, [historyIndex, history]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -226,13 +210,18 @@ const RuleCanvas = () => {
   };
 
   const deleteRule = (ruleId) => {
-    const newRules = rules.filter(rule => rule.id !== ruleId);
-    const newConnections = connections.filter(conn => conn.from !== ruleId && conn.to !== ruleId);
-    setRules(newRules);
-    setConnections(newConnections);
-    if (selectedRule === ruleId) setSelectedRule(null);
-    setContextMenu(null);
-    saveToHistory('Delete Rule', newRules, newConnections, selectedRule === ruleId ? null : selectedRule);
+    setRules(prevRules => {
+      const newRules = prevRules.filter(rule => rule.id !== ruleId);
+      setConnections(prevConnections => {
+        const newConnections = prevConnections.filter(conn => conn.from !== ruleId && conn.to !== ruleId);
+        // Save to history with the latest state
+        saveToHistory('Delete Rule', newRules, newConnections, selectedRule === ruleId ? null : selectedRule);
+        return newConnections;
+      });
+      if (selectedRule === ruleId) setSelectedRule(null);
+      setContextMenu(null);
+      return newRules;
+    });
   };
 
   const deleteConnection = (connectionId) => {
@@ -265,23 +254,22 @@ const RuleCanvas = () => {
     setContextMenu(null);
   };
 
+  const saveRuleEdit = () => {
+    if (editLabel.trim()) {
+      const newRules = rules.map(rule => rule.id === editingRule ? { ...rule, label: editLabel.trim() } : rule);
+      setRules(newRules);
+      // No saveToHistory here: edits are not undoable
+    }
+    setEditingRule(null);
+    setEditLabel('');
+  };
+
   const saveRuleDetails = () => {
     const newRules = rules.map(rule => rule.id === editingRuleDetails ? { ...rule, ...ruleForm } : rule);
     setRules(newRules);
     setShowRuleDetails(false);
     setEditingRuleDetails(null);
-    saveToHistory('Update Rule Details', newRules, connections, selectedRule);
-    setTimeout(() => markAsSaved(), 0);
-  };
-
-  const saveRuleEdit = () => {
-    if (editLabel.trim()) {
-      const newRules = rules.map(rule => rule.id === editingRule ? { ...rule, label: editLabel.trim() } : rule);
-      setRules(newRules);
-      saveToHistory('Edit Rule Label', newRules, connections, selectedRule);
-    }
-    setEditingRule(null);
-    setEditLabel('');
+    // No saveToHistory here: edits are not undoable
   };
 
   const cancelRuleEdit = () => {
@@ -447,7 +435,6 @@ const RuleCanvas = () => {
         connections={connections}
         historyIndex={historyIndex}
         selectedRule={selectedRule}
-        lastSavedIndex={lastSavedIndex}
       />
 
       {/* Selected Rule Legend */}

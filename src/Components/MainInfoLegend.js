@@ -40,7 +40,6 @@ const MainInfoLegend = ({ rules, connections, historyIndex, selectedRule, lastSa
             <div style={{ fontSize: '10px', marginTop: '2px' }}>
                 Undo: Create/Delete nodes & edges
             </div>
-            {lastSavedIndex >= 0 && <div>🔒 Protected: {lastSavedIndex + 1} saved actions</div>}
         </div>
 
         {selectedRule && (
