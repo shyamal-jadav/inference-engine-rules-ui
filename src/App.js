@@ -465,12 +465,83 @@ const RuleCanvas = () => {
       overflow: 'hidden'
     }}>
       {/* Main Info Panel */}
-      <MainInfoLegend
-        rules={rules}
-        connections={connections}
-        historyIndex={historyIndex}
-        selectedRule={selectedRule}
-      />
+      <div style={{
+        position: 'absolute',
+        top: '16px',
+        left: '16px',
+        zIndex: 10,
+        maxWidth: '350px',
+        width: '100%'
+      }}>
+        <MainInfoLegend
+          rules={rules}
+          connections={connections}
+          historyIndex={historyIndex}
+          selectedRule={selectedRule}
+        />
+      </div>
+
+      {/* Export JSON Button - bottom right */}
+      <div style={{
+        position: 'absolute',
+        right: '32px',
+        bottom: '32px',
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        minWidth: '120px',
+      }}>
+        <button
+          onClick={() => {
+            const data = JSON.stringify({ rules, connections }, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'rules-export.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+          }}
+          style={{
+            background: 'linear-gradient(90deg, #10b981 0%, #22d3ee 100%)',
+            color: 'white',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '8px 18px',
+            fontSize: '15px',
+            fontWeight: 600,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(16,185,129,0.10)',
+            minWidth: '120px',
+            letterSpacing: '0.2px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '7px',
+            border: '1.2px solid #10b981',
+            transition: 'background 0.2s, box-shadow 0.2s, transform 0.15s',
+          }}
+          onMouseOver={e => {
+            e.currentTarget.style.background = 'linear-gradient(90deg, #22d3ee 0%, #10b981 100%)';
+            e.currentTarget.style.boxShadow = '0 4px 14px rgba(34,211,238,0.13)';
+            e.currentTarget.style.transform = 'translateY(-1px) scale(1.02)';
+          }}
+          onMouseOut={e => {
+            e.currentTarget.style.background = 'linear-gradient(90deg, #10b981 0%, #22d3ee 100%)';
+            e.currentTarget.style.boxShadow = '0 2px 8px rgba(16,185,129,0.10)';
+            e.currentTarget.style.transform = 'none';
+          }}
+        >
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" style={{marginRight: '2px'}}>
+            <path d="M12 4v12m0 0l-4-4m4 4l4-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <rect x="4" y="18" width="16" height="2" rx="1" fill="white"/>
+          </svg>
+          Export JSON
+        </button>
+      </div>
 
       {/* Selected Rule Legend */}
       {selectedRuleData &&
